@@ -360,7 +360,7 @@ if [[ ! -v ZREPL ]] || [[ ! -v RESCUE ]] || [[ ! -v GOOGLE ]] || [[ ! -v HWE ]] 
             ZREPL "Install Zrepl zfs snapshot manager" OFF \
             DELAY "Add delay before importing root pool - for many-disk systems" OFF \
             SOF "Install Sound Open Firmware binaries ${SOF_VERSION} (for some laptops)" OFF \
-            GNOME "Install Ubuntu Gnome desktop" OFF \
+            GNOME "Install Ubuntu Gnome desktop" ON \
             XFCE "Install Ubuntu xfce4 desktop with goodies" OFF \
             KDE "Install Ubuntu KDE Plasma desktop" OFF \
             NEON "Install Neon KDE Plasma desktop" OFF 2>"${TMPFILE}"
@@ -403,10 +403,10 @@ if [[ ! -v NVIDIA ]] ; then
             apt-add-repository --yes --update ppa:graphics-drivers/ppa
             NVIDIA_LATEST=$(apt-cache search nvidia-driver- | cut -d ' ' -f1 | grep -e "nvidia-driver-...$" | cut -d'-' -f3 | sort | tail -1)
             NVIDIA=$(whiptail --title "Nvidia Hardware detected - install latest driver ?" --radiolist "Gnome/KDE/NEON was selected, and Nvidia graphics HW was detected on this system.  The ppa:graphics-drivers/ppa repo could be installed in order to get the binary Nvidia driver\n\nNOTE: Be sure to select the correct driver - the latest (${NVIDIA_LATEST}) may not support older legacy HW.  See\n\nhttps://www.nvidia.com/en-us/drivers/unix/legacy-gpu/\n\nfor more information on legacy HW.  It is safe to select NONE if you are unsure.  You can always install the appropriate driver later via Additional Drivers" 22 70 4 \
-                ${NVIDIA_LATEST} "Latest ${NVIDIA_LATEST}" OFF \
+                ${NVIDIA_LATEST} "Latest ${NVIDIA_LATEST}" ON \
                 470    "Legacy 470 driver" OFF \
                 390    "Legacy 390 driver" OFF \
-                none   "No Nvidia driver" ON \
+                none   "No Nvidia driver" OFF \
                 3>&1 1>&2 2>&3)
             RET=${?}
             [[ ${RET} = 1 ]] && exit 1
@@ -461,7 +461,7 @@ fi
 # defined here, then will be calculated to accomodate memory size (plus fudge factor).
 if [[ ! -v SIZE_SWAP ]] ; then
     MEMTOTAL=$(cat /proc/meminfo | grep -F MemTotal | tr -s ' ' | cut -d' ' -f2)
-    SIZE_SWAP=$(( (MEMTOTAL + 20480) / 1024 ))
+    SIZE_SWAP=8192
     # We MUST have a swap partition of at least ram size if HIBERNATE is enabled
     # So don't even prompt the user for a size. Her own silly fault if it's
     # enabled but she doesn't want a swap partition
@@ -507,7 +507,7 @@ case ${SUITE} in
         # Gets tacked on to various packages below
         [ "${HWE}" = "y" ] && HWE="-hwe-${SUITE_NUM}" || HWE=
         # Specific zpool features available in jammy
-        SUITE_ROOT_POOL="-O dnodesize=auto"
+        SUITE_ROOT_POOL="-O dnodesize=auto -O compression=zstd-19"
         ;;
     jammy)
         SUITE_NUM="22.04"
@@ -753,7 +753,7 @@ for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
         apt-get -qq --no-install-recommends --yes install cryptsetup
     else
     # Unencrypted or ZFS encrypted
-        sgdisk -n ${PARTITION_DATA}:0:0 -c ${PARTITION_DATA}:"ZFS_${disk}" -t ${PARTITION_DATA}:BF00 /dev/disk/by-id/${zfsdisks[${disk}]}
+        sgdisk -n ${PARTITION_DATA}:0:+105G -c ${PARTITION_DATA}:"ZFS_${disk}" -t ${PARTITION_DATA}:BF00 /dev/disk/by-id/${zfsdisks[${disk}]}
     fi # DISCENC for LUKS
 done
 # Refresh partition information
