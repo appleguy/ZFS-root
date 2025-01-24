@@ -477,7 +477,7 @@ fi # Check for Swap size in ZFS-root.conf
 # Only used for swap partition (encrypted or not)
 USE_ZSWAP="zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=25"
 
-# What suite is this script running under ?  bionic or focal
+# What suite is this script running under ?  bionic or focal	
 # Xenial does not support a couple of zfs feature flags, so have to
 # not use them when creating the pools, even if the target system
 # is bionic.  Pool can be upgraded after booting into the target.
@@ -486,7 +486,7 @@ SCRIPT_SUITE=$(lsb_release -cs)
 # Suite to install - bionic focal jammy noble
 if [[ ! -v SUITE ]] ; then
     SUITE=$(whiptail --title "Select Ubuntu distribtion" --radiolist "Choose distro" 12 50 6 \
-        noble"24.04 noble" ON \
+        noble "24.04 noble" ON \
         jammy "22.04 jammy" ON \
         focal "20.04 focal" OFF \
         bionic "18.04 Bionic" OFF \
@@ -507,7 +507,7 @@ case ${SUITE} in
         # Gets tacked on to various packages below
         [ "${HWE}" = "y" ] && HWE="-hwe-${SUITE_NUM}" || HWE=
         # Specific zpool features available in jammy
-        SUITE_ROOT_POOL="-O dnodesize=auto -O compression=zstd-19"
+        SUITE_ROOT_POOL="-O dnodesize=auto"
         ;;
     jammy)
         SUITE_NUM="22.04"
@@ -855,7 +855,7 @@ case ${DISCENC} in
     LUKS)
         echo "Creating root pool ${POOLNAME}"
         zpool create -f -o ashift=12 -o autotrim=on ${SUITE_ROOT_POOL} \
-             -O acltype=posixacl -O canmount=off -O compression=lz4 \
+             -O acltype=posixacl -O canmount=off -O compression=zstd-19 \
              -O atime=off \
              -O normalization=formD -O relatime=on -O xattr=sa \
              -O mountpoint=/ -R ${ZFSBUILD} \
@@ -871,7 +871,7 @@ case ${DISCENC} in
         #  -o feature@spacemap_v2=disabled \
         echo "Creating root pool ${POOLNAME}"
         zpool create -f -o ashift=12 -o autotrim=on ${SUITE_ROOT_POOL} \
-          -O acltype=posixacl -O canmount=off -O compression=lz4 \
+          -O acltype=posixacl -O canmount=off -O compression=zstd-19 \
           -O atime=off \
           -O normalization=formD -O relatime=on -O xattr=sa \
           -O mountpoint=none -R ${ZFSBUILD} \
@@ -892,14 +892,16 @@ echo "Creating main zfs datasets"
 if [ "${DISCENC}" = "ZFSENC" ] ; then
     echo "${PASSPHRASE}" | zfs create -o canmount=off -o mountpoint=none ${ZFSENC_ROOT_OPTIONS} ${POOLNAME}/ROOT
 else
-    zfs create -o canmount=off -o mountpoint=none ${POOLNAME}/ROOT
+    zfs create -o canmount=off -o mountpoint=none -o compression=zstd-19 ${POOLNAME}/ROOT
 fi
 
 # Actual dataset for suite we are installing now
-zfs create -o canmount=noauto -o mountpoint=/ \
-    ${POOLNAME}/ROOT/${SUITE}
+echo "creating sub-root dataset: ${POOLNAME}/ROOT/${SUITE}"
+zfs create -o canmount=noauto -o mountpoint=/ -o compression=zstd-19 ${POOLNAME}/ROOT/${SUITE}
 
+echo "setting bootfs"
 zpool set bootfs=${POOLNAME}/ROOT/${SUITE} ${POOLNAME}
+echo "mounting sub-root dataset"
 zfs mount ${POOLNAME}/ROOT/${SUITE}
 
 if [ "${DISCENC}" != "NOENC" ] ; then
@@ -909,11 +911,12 @@ if [ "${DISCENC}" != "NOENC" ] ; then
     cp /etc/zfs/zroot.*key ${ZFSBUILD}/etc/zfs
 fi
 
+echo "creating home and root datasets"
 # zfs create pool/home and main user home dataset - possibly zfs native encrypted
 if [ "${DISCENC}" = "ZFSENC" ] ; then
-    echo "${PASSPHRASE}" | zfs create -o canmount=off -o mountpoint=none -o compression=lz4 -o atime=off ${ZFSENC_HOME_OPTIONS} ${POOLNAME}/home
+    echo "${PASSPHRASE}" | zfs create -o canmount=off -o mountpoint=none -o compression=zstd-19 -o atime=off ${ZFSENC_HOME_OPTIONS} ${POOLNAME}/home
 else
-    zfs create -o canmount=off -o mountpoint=none -o compression=lz4 -o atime=off ${POOLNAME}/home
+    zfs create -o canmount=off -o mountpoint=none -o compression=zstd-19 -o atime=off ${POOLNAME}/home
 fi
 zfs create -o canmount=on -o mountpoint=/home/${USERNAME} ${POOLNAME}/home/${USERNAME}
 zfs create -o canmount=on -o mountpoint=/root ${POOLNAME}/home/root
@@ -2387,5 +2390,3 @@ ZFSBUILD_C=$(echo ${ZFSBUILD} | sed -e 's!/!\\/!'g)
 # mount | grep -v zfs | tac | awk '/\/mnt/ {print \$3}' | xargs -i{} umount -lf {}
 mount | grep -v zfs | tac | awk '/${ZFSBUILD_C}/ {print $3}' | xargs -i{} umount -lf {}
 zpool export ${POOLNAME}
-
-
