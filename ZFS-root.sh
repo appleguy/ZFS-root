@@ -456,6 +456,7 @@ if [ "${DISCENC}" != "ZFSENC" ] ; then
     ZFSENC_HOME_OPTIONS=""
 fi
 
+if [ 0 ]
 # Swap size - if HIBERNATE enabled then this will be an actual disk partition.  
 # If DISCENC == LUKS then partition will be encrypted.  If SIZE_SWAP is not
 # defined here, then will be calculated to accomodate memory size (plus fudge factor).
@@ -467,12 +468,13 @@ if [[ ! -v SIZE_SWAP ]] ; then
     # enabled but she doesn't want a swap partition
     if [ ${HIBERNATE} = "n" ] ; then
         SIZE_SWAP=0
-	#$(whiptail --inputbox "If HIBERNATE enabled then this will be a disk partition otherwise it will be a regular ZFS dataset. If LUKS enabled then the partition will be encrypted.\nIf SWAP size not set here (left blank), then it will be calculated to accomodate memory size. Set to zero (0) to disable swap.\n\nSize of swap space in megabytes (default is calculated value)\nSet to zero (0) to disable swap" \
+	$(whiptail --inputbox "If HIBERNATE enabled then this will be a disk partition otherwise it will be a regular ZFS dataset. If LUKS enabled then the partition will be encrypted.\nIf SWAP size not set here (left blank), then it will be calculated to accomodate memory size. Set to zero (0) to disable swap.\n\nSize of swap space in megabytes (default is calculated value)\nSet to zero (0) to disable swap" \
         --title "SWAP size" 15 70 $(echo $SIZE_SWAP) 3>&1 1>&2 2>&3)
         RET=${?}
         [[ ${RET} = 1 ]] && exit 1
     fi
 fi # Check for Swap size in ZFS-root.conf
+fi # 0
 
 # Use zswap compressed page cache in front of swap ? https://wiki.archlinux.org/index.php/Zswap
 # Only used for swap partition (encrypted or not)
