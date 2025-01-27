@@ -749,7 +749,7 @@ case ${DISCENC} in
         echo "Creating root pool ${POOLNAME}"
         zpool create -f -o ashift=12 -o autotrim=on ${SUITE_ROOT_POOL} \
              -O acltype=posixacl -O canmount=off -O compression=zstd-19 \
-             -O atime=off \
+             -O atime=off -O recordsize=512K \
              -O normalization=formD -O relatime=on -O xattr=sa \
              -O mountpoint=/ -R ${ZFSBUILD} \
              ${POOLNAME} ${RAIDLEVEL} ${ZPOOLDISK}
