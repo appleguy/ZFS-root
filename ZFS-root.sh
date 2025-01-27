@@ -140,8 +140,8 @@ ZFSBUILD=/mnt/builder
 
 # Partition numbers of each partition
 PARTITION_BOOT=1
-PARTITION_SWAP=2
-PARTITION_DATA=3
+# PARTITION_SWAP=2
+PARTITION_DATA=4
 
 # ZFS encryption options
 ZFSENC_ROOT_OPTIONS="-o encryption=aes-256-gcm -o keylocation=prompt -o keyformat=passphrase"
@@ -461,12 +461,13 @@ fi
 # defined here, then will be calculated to accomodate memory size (plus fudge factor).
 if [[ ! -v SIZE_SWAP ]] ; then
     MEMTOTAL=$(cat /proc/meminfo | grep -F MemTotal | tr -s ' ' | cut -d' ' -f2)
-    SIZE_SWAP=8192
+    SIZE_SWAP=0
     # We MUST have a swap partition of at least ram size if HIBERNATE is enabled
     # So don't even prompt the user for a size. Her own silly fault if it's
     # enabled but she doesn't want a swap partition
     if [ ${HIBERNATE} = "n" ] ; then
-        SIZE_SWAP=$(whiptail --inputbox "If HIBERNATE enabled then this will be a disk partition otherwise it will be a regular ZFS dataset. If LUKS enabled then the partition will be encrypted.\nIf SWAP size not set here (left blank), then it will be calculated to accomodate memory size. Set to zero (0) to disable swap.\n\nSize of swap space in megabytes (default is calculated value)\nSet to zero (0) to disable swap" \
+        SIZE_SWAP=0
+	#$(whiptail --inputbox "If HIBERNATE enabled then this will be a disk partition otherwise it will be a regular ZFS dataset. If LUKS enabled then the partition will be encrypted.\nIf SWAP size not set here (left blank), then it will be calculated to accomodate memory size. Set to zero (0) to disable swap.\n\nSize of swap space in megabytes (default is calculated value)\nSet to zero (0) to disable swap" \
         --title "SWAP size" 15 70 $(echo $SIZE_SWAP) 3>&1 1>&2 2>&3)
         RET=${?}
         [[ ${RET} = 1 ]] && exit 1
@@ -892,12 +893,12 @@ echo "Creating main zfs datasets"
 if [ "${DISCENC}" = "ZFSENC" ] ; then
     echo "${PASSPHRASE}" | zfs create -o canmount=off -o mountpoint=none ${ZFSENC_ROOT_OPTIONS} ${POOLNAME}/ROOT
 else
-    zfs create -o canmount=off -o mountpoint=none -o compression=zstd-19 ${POOLNAME}/ROOT
+    zfs create -o canmount=off -o mountpoint=none -o recordsize=512K -o compression=zstd-19 ${POOLNAME}/ROOT
 fi
 
 # Actual dataset for suite we are installing now
 echo "creating sub-root dataset: ${POOLNAME}/ROOT/${SUITE}"
-zfs create -o canmount=noauto -o mountpoint=/ -o compression=zstd-19 ${POOLNAME}/ROOT/${SUITE}
+zfs create -o canmount=noauto -o mountpoint=/ -o recordsize=512K -o compression=zstd-19 ${POOLNAME}/ROOT/${SUITE}
 
 echo "setting bootfs"
 zpool set bootfs=${POOLNAME}/ROOT/${SUITE} ${POOLNAME}
@@ -916,10 +917,10 @@ echo "creating home and root datasets"
 if [ "${DISCENC}" = "ZFSENC" ] ; then
     echo "${PASSPHRASE}" | zfs create -o canmount=off -o mountpoint=none -o compression=zstd-19 -o atime=off ${ZFSENC_HOME_OPTIONS} ${POOLNAME}/home
 else
-    zfs create -o canmount=off -o mountpoint=none -o compression=zstd-19 -o atime=off ${POOLNAME}/home
+    zfs create -o canmount=off -o mountpoint=none -o recordsize=512K -o compression=zstd-19 -o atime=off ${POOLNAME}/home
 fi
-zfs create -o canmount=on -o mountpoint=/home/${USERNAME} ${POOLNAME}/home/${USERNAME}
-zfs create -o canmount=on -o mountpoint=/root ${POOLNAME}/home/root
+zfs create -o canmount=on -o recordsize=512K -o mountpoint=/home/${USERNAME} ${POOLNAME}/home/${USERNAME}
+zfs create -o canmount=on -o recordsize=512K -o mountpoint=/root ${POOLNAME}/home/root
 
 # If no HIBERNATE partition (not laptop, no resume etc) then just create
 # a zvol for swap.  Could not create this in the block above for swap because
