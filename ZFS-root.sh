@@ -456,7 +456,7 @@ if [ "${DISCENC}" != "ZFSENC" ] ; then
     ZFSENC_HOME_OPTIONS=""
 fi
 
-#if [ 0 ] ; then
+#if [ false ] ; then
 # Swap size - if HIBERNATE enabled then this will be an actual disk partition.  
 # If DISCENC == LUKS then partition will be encrypted.  If SIZE_SWAP is not
 # defined here, then will be calculated to accomodate memory size (plus fudge factor).
@@ -716,7 +716,7 @@ apt-get -qq --no-install-recommends --yes install openssh-server debootstrap gdi
 # Stop all found mdadm arrays - again, just in case.  Sheesh.
 find /dev -iname md* -type b -exec bash -c "umount {} > /dev/null 2>&1 ; mdadm --stop --force {} > /dev/null 2>&1 ; mdadm --remove {} > /dev/null 2>&1" \;
 
-if [ 0 ] ; then
+if [ false ] ; then
 echo "ABOUT TO ERASE DISKS"
 for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
     zpool labelclear -f /dev/disk/by-id/${zfsdisks[${disk}]}
@@ -786,7 +786,7 @@ for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
     fi
 done
 
-if [ 0 ] ; then
+if [ false ] ; then
 # Create SWAP volume for HIBERNATE, encrypted maybe
 # Just using individual swap partitions - could use mdadm to mirror/raid
 # them up, but meh, why ?
