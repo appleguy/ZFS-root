@@ -456,7 +456,7 @@ if [ "${DISCENC}" != "ZFSENC" ] ; then
     ZFSENC_HOME_OPTIONS=""
 fi
 
-if [ 0 ]
+if [ 0 ] ; then
 # Swap size - if HIBERNATE enabled then this will be an actual disk partition.  
 # If DISCENC == LUKS then partition will be encrypted.  If SIZE_SWAP is not
 # defined here, then will be calculated to accomodate memory size (plus fudge factor).
