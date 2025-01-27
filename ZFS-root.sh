@@ -140,8 +140,8 @@ ZFSBUILD=/mnt/builder
 
 # Partition numbers of each partition
 PARTITION_BOOT=1
-# PARTITION_SWAP=2
-PARTITION_DATA=4
+PARTITION_SWAP=6
+PARTITION_DATA=5
 
 # ZFS encryption options
 ZFSENC_ROOT_OPTIONS="-o encryption=aes-256-gcm -o keylocation=prompt -o keyformat=passphrase"
@@ -456,7 +456,7 @@ if [ "${DISCENC}" != "ZFSENC" ] ; then
     ZFSENC_HOME_OPTIONS=""
 fi
 
-if [ 0 ] ; then
+#if [ 0 ] ; then
 # Swap size - if HIBERNATE enabled then this will be an actual disk partition.  
 # If DISCENC == LUKS then partition will be encrypted.  If SIZE_SWAP is not
 # defined here, then will be calculated to accomodate memory size (plus fudge factor).
@@ -474,7 +474,7 @@ if [[ ! -v SIZE_SWAP ]] ; then
         [[ ${RET} = 1 ]] && exit 1
     fi
 fi # Check for Swap size in ZFS-root.conf
-fi # 0
+#fi # 0
 
 # Use zswap compressed page cache in front of swap ? https://wiki.archlinux.org/index.php/Zswap
 # Only used for swap partition (encrypted or not)
@@ -717,6 +717,7 @@ apt-get -qq --no-install-recommends --yes install openssh-server debootstrap gdi
 find /dev -iname md* -type b -exec bash -c "umount {} > /dev/null 2>&1 ; mdadm --stop --force {} > /dev/null 2>&1 ; mdadm --remove {} > /dev/null 2>&1" \;
 
 if [ 0 ] ; then
+echo "ABOUT TO ERASE DISKS"
 for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
     zpool labelclear -f /dev/disk/by-id/${zfsdisks[${disk}]}
 
