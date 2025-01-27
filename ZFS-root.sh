@@ -714,6 +714,7 @@ apt-get -qq --no-install-recommends --yes install openssh-server debootstrap gdi
 # Stop all found mdadm arrays - again, just in case.  Sheesh.
 find /dev -iname md* -type b -exec bash -c "umount {} > /dev/null 2>&1 ; mdadm --stop --force {} > /dev/null 2>&1 ; mdadm --remove {} > /dev/null 2>&1" \;
 
+if [ 0 ] ; then
 for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
     zpool labelclear -f /dev/disk/by-id/${zfsdisks[${disk}]}
 
@@ -764,6 +765,8 @@ partprobe
 echo "Wait for partition info to settle out"
 sleep 5
 
+fi # 0 for formatting the disks
+
 # Build list of partitions to use for ...
 # Boot partition (mirror across all disks)
 PARTSBOOT=
@@ -780,6 +783,7 @@ for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
     fi
 done
 
+if [ 0 ] ; then
 # Create SWAP volume for HIBERNATE, encrypted maybe
 # Just using individual swap partitions - could use mdadm to mirror/raid
 # them up, but meh, why ?
@@ -820,7 +824,7 @@ if [ "${HIBERNATE}" = "y" ] ; then
         esac
     done
 fi #HIBERNATE
-
+fi # 0
 
 # Encrypt root volume maybe
 # NOTE: Need --disable-keyring so we can pull the derived key from the encrypted partition
