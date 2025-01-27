@@ -140,8 +140,8 @@ ZFSBUILD=/mnt/builder
 
 # Partition numbers of each partition
 PARTITION_BOOT=1
-PARTITION_SWAP=6
-PARTITION_DATA=5
+PARTITION_SWAP=5
+PARTITION_DATA=4
 
 # ZFS encryption options
 ZFSENC_ROOT_OPTIONS="-o encryption=aes-256-gcm -o keylocation=prompt -o keyformat=passphrase"
