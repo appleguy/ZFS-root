@@ -456,26 +456,6 @@ if [ "${DISCENC}" != "ZFSENC" ] ; then
     ZFSENC_HOME_OPTIONS=""
 fi
 
-#if [ false ] ; then
-# Swap size - if HIBERNATE enabled then this will be an actual disk partition.  
-# If DISCENC == LUKS then partition will be encrypted.  If SIZE_SWAP is not
-# defined here, then will be calculated to accomodate memory size (plus fudge factor).
-if [[ ! -v SIZE_SWAP ]] ; then
-    MEMTOTAL=$(cat /proc/meminfo | grep -F MemTotal | tr -s ' ' | cut -d' ' -f2)
-    SIZE_SWAP=0
-    # We MUST have a swap partition of at least ram size if HIBERNATE is enabled
-    # So don't even prompt the user for a size. Her own silly fault if it's
-    # enabled but she doesn't want a swap partition
-    if [ ${HIBERNATE} = "n" ] ; then
-        SIZE_SWAP=0
-	$(whiptail --inputbox "If HIBERNATE enabled then this will be a disk partition otherwise it will be a regular ZFS dataset. If LUKS enabled then the partition will be encrypted.\nIf SWAP size not set here (left blank), then it will be calculated to accomodate memory size. Set to zero (0) to disable swap.\n\nSize of swap space in megabytes (default is calculated value)\nSet to zero (0) to disable swap" \
-        --title "SWAP size" 15 70 $(echo $SIZE_SWAP) 3>&1 1>&2 2>&3)
-        RET=${?}
-        [[ ${RET} = 1 ]] && exit 1
-    fi
-fi # Check for Swap size in ZFS-root.conf
-#fi # 0
-
 # Use zswap compressed page cache in front of swap ? https://wiki.archlinux.org/index.php/Zswap
 # Only used for swap partition (encrypted or not)
 USE_ZSWAP="zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=25"
@@ -716,59 +696,6 @@ apt-get -qq --no-install-recommends --yes install openssh-server debootstrap gdi
 # Stop all found mdadm arrays - again, just in case.  Sheesh.
 find /dev -iname md* -type b -exec bash -c "umount {} > /dev/null 2>&1 ; mdadm --stop --force {} > /dev/null 2>&1 ; mdadm --remove {} > /dev/null 2>&1" \;
 
-if [ false ] ; then
-echo "ABOUT TO ERASE DISKS"
-for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
-    zpool labelclear -f /dev/disk/by-id/${zfsdisks[${disk}]}
-
-    # Wipe mdadm superblock from all partitions found, even if not md raid partition
-    mdadm --zero-superblock --force /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_BOOT} > /dev/null 2>&1
- 
-    wipefs --all --force /dev/disk/by-id/${zfsdisks[${disk}]}
-    sgdisk --zap-all /dev/disk/by-id/${zfsdisks[${disk}]}
-    sgdisk --clear /dev/disk/by-id/${zfsdisks[${disk}]}
-
-    # Legacy (BIOS) booting
-    sgdisk -a 1                                     /dev/disk/by-id/${zfsdisks[${disk}]}     # Set sector alignment to 1MiB
-    sgdisk -n ${PARTITION_BOOT}:1M:+1000M           /dev/disk/by-id/${zfsdisks[${disk}]}     # Create partition 1/BOOT 1M size
-    sgdisk -A ${PARTITION_BOOT}:set:2               /dev/disk/by-id/${zfsdisks[${disk}]}     # Turn legacy boot attribute on
-    sgdisk -c ${PARTITION_BOOT}:"BOOT_EFI_${disk}"  /dev/disk/by-id/${zfsdisks[${disk}]}     # Set partition name to BOOT_EFI_n
-    sgdisk -t ${PARTITION_BOOT}:EF00                /dev/disk/by-id/${zfsdisks[${disk}]}     # Set partition type to EFI
-    
-    #
-    # TODO: figure out partitions for both ZFS and LUKS encryption
-    #       both swap and main partitions
-    #
-    # For laptop hibernate need swap partition, encrypted or not
-    if [ "${HIBERNATE}" = "y" ] ; then
-        if [ "${DISCENC}" != "NOENC" ] ; then
-            # ZFS or LUKS Encrypted - should be partition type 8309 (Linux LUKS)
-            sgdisk -n ${PARTITION_SWAP}:0:+${SIZE_SWAP}M -c ${PARTITION_SWAP}:"SWAP_${disk}" -t ${PARTITION_SWAP}:8309 /dev/disk/by-id/${zfsdisks[${disk}]}
-        else
-            sgdisk -n ${PARTITION_SWAP}:0:+${SIZE_SWAP}M -c ${PARTITION_SWAP}:"SWAP_${disk}" -t ${PARTITION_SWAP}:8200 /dev/disk/by-id/${zfsdisks[${disk}]}
-        fi # DISCENC for ZFS or LUKS
-    fi # HIBERNATE
-    
-    # Main data partition for root
-    if [ ${DISCENC} = "LUKS" ] ; then
-        # LUKS Encrypted - should be partition type 8309 (Linux LUKS)
-        # wipefs --all --force /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_DATA}
-        zpool labelclear -f /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_DATA}
-        sgdisk -n ${PARTITION_DATA}:0:0 -c ${PARTITION_DATA}:"ZFS_${disk}" -t ${PARTITION_DATA}:8300 /dev/disk/by-id/${zfsdisks[${disk}]}
-        apt-get -qq --no-install-recommends --yes install cryptsetup
-    else
-    # Unencrypted or ZFS encrypted
-        sgdisk -n ${PARTITION_DATA}:0:+105G -c ${PARTITION_DATA}:"ZFS_${disk}" -t ${PARTITION_DATA}:BF00 /dev/disk/by-id/${zfsdisks[${disk}]}
-    fi # DISCENC for LUKS
-done
-# Refresh partition information
-partprobe
-
-# Have to wait a bit for the partitions to actually show up
-echo "Wait for partition info to settle out"
-sleep 5
-
-fi # 0 for formatting the disks
 
 # Build list of partitions to use for ...
 # Boot partition (mirror across all disks)
@@ -786,48 +713,6 @@ for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
     fi
 done
 
-if [ false ] ; then
-# Create SWAP volume for HIBERNATE, encrypted maybe
-# Just using individual swap partitions - could use mdadm to mirror/raid
-# them up, but meh, why ?
-# NOTE: Need --disable-keyring so we can pull the derived key from the encrypted partition
-#       otherwise it's in the kernel keyring
-if [ "${HIBERNATE}" = "y" ] ; then
-    # Hibernate, so we need a real swap partition(s)
-    for disk in $(seq 0 $(( ${#zfsdisks[@]} - 1))) ; do
-
-        case ${DISCENC} in
-            LUKS)
-                echo "Encrypting swap partition ${disk} size ${SIZE_SWAP}M"
-                echo "${PASSPHRASE}" | cryptsetup luksFormat --type luks2 --disable-keyring -c aes-xts-plain64 -s 512 -h sha256 /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_SWAP} 
-                echo "${PASSPHRASE}" | cryptsetup luksOpen --disable-keyring /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_SWAP} swap_crypt${disk}
-                mkswap -f /dev/mapper/swap_crypt${disk}
-
-                if [ ${disk} -eq 0 ] ; then
-                    # Get derived key to insert into other encrypted devices
-                    # To be more secure do this into a small ramdisk
-                    # swap must be opened 1st to enable resume from hibernation
-                    /lib/cryptsetup/scripts/decrypt_derived swap_crypt${disk} > /tmp/key
-                fi
-                # Add the derived key to all the other devices
-                echo "${PASSPHRASE}" | cryptsetup luksAddKey /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_SWAP} /tmp/key
-                # Add the generated key from /etc/zfs/zroot.rawkey
-                echo "${PASSPHRASE}" | cryptsetup luksAddKey /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_SWAP} /etc/zfs/zroot.rawkey
-                ;;
-
-            ZFSENC)
-                # ZFS encryption can just use a regular partition
-                mkswap -f /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_SWAP}
-                ;;
-
-            NOENC)
-                # Not LUKS, so just use a regular partition
-                mkswap -f /dev/disk/by-id/${zfsdisks[${disk}]}-part${PARTITION_SWAP}
-                ;;
-        esac
-    done
-fi #HIBERNATE
-fi # 0
 
 # Encrypt root volume maybe
 # NOTE: Need --disable-keyring so we can pull the derived key from the encrypted partition
